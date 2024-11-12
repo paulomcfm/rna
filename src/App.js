@@ -5,7 +5,8 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import { Line } from 'react-chartjs-2';
 
 function App() {
-  const [csvData, setCsvData] = useState([]);
+  const [trainingData, setTrainingData] = useState([]);
+  const [testData, setTestData] = useState([]);
   const [dataSource, setDataSource] = useState('');
   const [normalizationParams, setNormalizationParams] = useState({});
   const [neuronsConfig, setNeuronsConfig] = useState({
@@ -23,22 +24,30 @@ function App() {
     Papa.parse(file, {
       header: true,
       complete: (results) => {
-        const data = results.data;
+        let data = results.data;
+        data = data.filter(row => {
+          return Object.values(row).some(value => value !== null && value !== '');
+        });
         const { normalizedData, params } = normalizeData(data);
-        setCsvData(normalizedData);
+        setTrainingData(normalizedData);
         setNormalizationParams(params);
+        console.log(data);
       },
     });
-    setDataSource('external');
+    setDataSource('subset');
   };
 
   const handleExternalFileUpload = (file) => {
     Papa.parse(file, {
       header: true,
       complete: (results) => {
-        const data = results.data;
+        let data = results.data;
+        data = data.filter(row => {
+          return Object.values(row).some(value => value !== null && value !== '');
+        });
         const normalizedData = normalizeExternalData(data, normalizationParams);
-        console.log('Normalized external file data:', normalizedData);
+        setTestData(normalizedData);
+        console.log(data);
       },
     });
   };
@@ -109,18 +118,40 @@ function App() {
   };
 
   const runBackpropagation = () => {
-    // Placeholder for backpropagation algorithm
-    const iterations = 100;
-    const errors = [];
-    for (let i = 0; i < iterations; i++) {
-      // Simulate error calculation
-      const meanError = Math.random(); // Replace with actual error calculation
-      errors.push(meanError);
+    if (dataSource === 'subset') {
+      const classCounts = {};
+      const classData = {};
+  
+      trainingData.forEach((row) => {
+        const className = row[row.length - 1];
+        if (!classCounts[className]) {
+          classCounts[className] = 0;
+          classData[className] = [];
+        }
+        classCounts[className]++;
+        classData[className].push(row);
+      });
+  
+      const newTrainingData = [];
+      const newTestData = [];
+  
+      Object.keys(classData).forEach((className) => {
+        const data = classData[className];
+        const testSize = Math.floor(data.length * 0.3);
+        const trainingSize = data.length - testSize;
+  
+        newTrainingData.push(...data.slice(0, trainingSize));
+  
+        newTestData.push(...data.slice(trainingSize));
+      });
+  
+      setTrainingData(newTrainingData);
+      setTestData(newTestData);
+      console.log(newTrainingData);
+      console.log(newTestData);
     }
-    setErrorData({
-      labels: Array.from({ length: iterations }, (_, i) => i + 1),
-      datasets: [{ label: 'Mean Error', data: errors }]
-    });
+  
+    //backpropagation
   };
 
   return (
@@ -225,7 +256,7 @@ function App() {
         />
       </Form.Group>
 
-      {csvData.length > 0 && (
+      {trainingData.length > 0 && (
         <Form.Group>
           <Form.Label>Choose Data Source</Form.Label>
           <Form.Control
@@ -248,18 +279,18 @@ function App() {
             />
           </Form.Group>
         )}
-      {csvData.length > 0 && (
+      {trainingData.length > 0 && (
         <div style={{ maxHeight: '400px', overflowY: 'scroll' }}>
           <Table striped bordered hover className="mt-3">
             <thead>
               <tr>
-                {Object.keys(csvData[0]).map((header, index) => (
+                {Object.keys(trainingData[0]).map((header, index) => (
                   <th key={index}>{header}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {csvData.map((row, rowIndex) => (
+              {trainingData.map((row, rowIndex) => (
                 <tr key={rowIndex}>
                   {Object.values(row).map((value, colIndex) => (
                     <td key={colIndex}>{value}</td>
@@ -270,7 +301,7 @@ function App() {
           </Table>
         </div>
       )}
-      {csvData.length > 0 && (
+      {trainingData.length > 0 && (
         <Button className="mt-3" onClick={runBackpropagation}>
           Resolver
         </Button>
