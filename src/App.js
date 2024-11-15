@@ -28,10 +28,26 @@ function App() {
         data = data.filter(row => {
           return Object.values(row).some(value => value !== null && value !== '');
         });
+
+        const columnKeys = Object.keys(data[0]);
+        const inputLayer = columnKeys.length - 1;
+        const classes = [...new Set(data.map(row => row[columnKeys[columnKeys.length - 1]]))];
+        const outputLayer = classes.length;
+        // const hiddenLayer = Math.round((inputLayer + outputLayer) / 2);
+        const hiddenLayer = 2;
+
+        setNeuronsConfig(prevConfig => ({
+          ...prevConfig,
+          inputLayer,
+          outputLayer,
+          hiddenLayer,
+        }));
+
         const { normalizedData, params } = normalizeData(data);
         setTrainingData(normalizedData);
         setNormalizationParams(params);
-        console.log(data);
+        console.log(normalizedData);
+        // console.log(data);
       },
     });
     setDataSource('subset');
@@ -162,8 +178,21 @@ function App() {
       );
     };
 
-    let weightsInputHidden = initializeWeights(inputLayer, hiddenLayer);
-    let weightsHiddenOutput = initializeWeights(hiddenLayer, outputLayer);
+    // let weightsInputHidden = initializeWeights(inputLayer, hiddenLayer);
+    // let weightsHiddenOutput = initializeWeights(hiddenLayer, outputLayer);
+
+    let weightsInputHidden = [
+      [0.5, -0.3, 0.8, -0.6, 0.2, -0.1], // Example values for the first hidden neuron
+      [-0.2, 0.4, -0.7, 0.9, -0.5, 0.3]   // Example values for the second hidden neuron
+    ];
+
+    let weightsHiddenOutput = [
+      [0.3, -0.5], // Example values for the first output neuron
+      [-0.6, 0.7], // Example values for the second output neuron
+      [0.2, -0.4], // Example values for the third output neuron
+      [0.1, -0.2], // Example values for the fourth output neuron
+      [-0.3, 0.6]  // Example values for the third output neuron
+    ];
 
     const activationFunction = (x) => {
       switch (transferFunction) {
@@ -182,7 +211,7 @@ function App() {
         case 'logistic':
           return y * (1 - y);
         case 'hyperbolic':
-          return 1 - Math.pow(y, 2);
+          return 1 - (Math.pow(y, 2));
         case 'linear':
         default:
           return 1 / 10;
@@ -198,13 +227,13 @@ function App() {
 
     console.log('Mapeamento de classes:', classMapping);
     let error = 10;
-    for (let epoch = 0; epoch < iterations || error > errorValue; epoch++) {
+    for (let epoch = 0; epoch < iterations && error > errorValue; epoch++) {
       let totalError = 0;
 
       trainingData.forEach((sample) => {
         // Separar entrada e saída dinamicamente
         const inputs = Object.keys(sample)
-          .filter(key => key !== 'classe') 
+          .filter(key => key !== 'classe')
           .map(key => parseFloat(sample[key]));
 
         const desiredOutput = Array(outputLayer).fill(0);
@@ -221,59 +250,59 @@ function App() {
         });
         const hiddenOutputs = hiddenInputs.map(activationFunction);
 
-        const finalInputs = weightsHiddenOutput.map((weights) =>{
+        const finalInputs = weightsHiddenOutput.map((weights) => {
           return hiddenOutputs.reduce((sum, output, i) => {
             if (i >= weights.length) {
               return sum;
             }
             return sum + output * weights[i];
-          });
+          }, 0); // Initialize sum to 0
         });
         const finalOutputs = finalInputs.map(activationFunction);
 
         // Calcular erro
         const outputErrors = desiredOutput.map((desired, i) => desired - finalOutputs[i]);
-        totalError += outputErrors.reduce((sum, err) => sum + Math.pow(err, 2), 0);
-
+        
         // Backward pass (erro da camada de saída)
-        const outputGradients = outputErrors.map((error, i) =>
-          error * activationFunctionDerivative(finalOutputs[i])
-        );
+        const outputGradients = outputErrors.map((error, i) => {
+          return activationFunctionDerivative(error) * error;
+        });
+
+        totalError += outputGradients.reduce((sum, err) => sum + Math.pow(err, 2), 0);
+        // Armazenar a média de erros desta época
+        const meanError = (1 / 2) * totalError;
+        errorsPerEpoch.push(meanError);
+        console.log('Época', epoch + 1, 'Erro médio:', meanError);
+        error = meanError;
 
         // Erro da camada oculta
-        const hiddenErrors = weightsHiddenOutput[0].map((_, j) =>
-          outputGradients.reduce((sum, grad, k) => sum + grad * weightsHiddenOutput[k][j], 0)
-        );
-        const hiddenGradients = hiddenErrors.map((error, i) =>
-          error * activationFunctionDerivative(hiddenOutputs[i])
-        );
+        const hiddenErrors = weightsHiddenOutput[0].map((_, j) => {
+          const sum = outputGradients.reduce((acc, error, k) => {
+            return acc + error * weightsHiddenOutput[k][j];
+          }, 0);
+          return sum*activationFunctionDerivative();
+        });
 
         // Atualizar pesos entre camada oculta e de saída
         weightsHiddenOutput = weightsHiddenOutput.map((weights, k) =>
-          weights.map((weight, j) => weight + learningRate * outputGradients[k] * hiddenOutputs[j])
+          weights.map((weight, j) => weight + learningRate * outputGradients[j] * hiddenOutputs[j])
         );
 
         // Atualizar pesos entre entrada e camada oculta
         weightsInputHidden = weightsInputHidden.map((weights, i) =>
-          weights.map((weight, j) => weight + learningRate * hiddenGradients[i] * inputs[j])
+          weights.map((weight, j) => weight + learningRate * hiddenErrors[i] * inputs[j])
         );
-      });
 
-      // Armazenar a média de erros desta época
-      const meanError = totalError / trainingData.length;
-      errorsPerEpoch.push(meanError);
-      console.log('Época', epoch + 1, 'Erro médio:', meanError);
-      error = meanError;
-
-      // Atualizar dados do gráfico
-      setErrorData((prevData) => ({
-        ...prevData,
-        labels: [...prevData.labels, epoch + 1],
-        datasets: [{
-          ...prevData.datasets[0],
-          data: [...prevData.datasets[0].data, meanError],
-        }],
-      }));
+        // Atualizar dados do gráfico
+        // setErrorData((prevData) => ({
+        //   ...prevData,
+        //   labels: [...prevData.labels, epoch + 1],
+        //   datasets: [{
+        //     ...prevData.datasets[0],
+        //     data: [...prevData.datasets[0].data, meanError],
+        //   }],
+        // }));
+      })
     }
 
     console.log('Treinamento concluído. Média de erros por época:', errorsPerEpoch);
