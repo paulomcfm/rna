@@ -15,7 +15,8 @@ function App() {
     hiddenLayer: 5,
     errorValue: 0.00001,
     iterations: 2000,
-    N: 0.2,
+    // N: 0.2,
+    N: 0.5,
     transferFunction: 'linear',
   });
   const [errorData, setErrorData] = useState({ labels: [], datasets: [{ label: 'Mean Error', data: [] }] });
@@ -45,8 +46,9 @@ function App() {
 
         const { normalizedData, params } = normalizeData(data);
         setTrainingData(normalizedData);
+        // setTrainingData(data);
         setNormalizationParams(params);
-        console.log(normalizedData);
+        // console.log(normalizedData);
         // console.log(data);
       },
     });
@@ -63,6 +65,7 @@ function App() {
         });
         const normalizedData = normalizeExternalData(data, normalizationParams);
         setTestData(normalizedData);
+        setTestData(data);
         console.log(data);
       },
     });
@@ -194,6 +197,16 @@ function App() {
       [-0.3, 0.6]  // Example values for the third output neuron
     ];
 
+    // let weightsInputHidden = [
+    //   [-1.1,1.4], // Example values for the first hidden neuron
+    //   [3.6,-2.1]   // Example values for the second hidden neuron
+    // ];
+
+    // let weightsHiddenOutput = [
+    //   [2.1, 3.2], // Example values for the first output neuron
+    //   [1.2, 1.6], // Example values for the second output neuron
+    // ];
+
     const activationFunction = (x) => {
       switch (transferFunction) {
         case 'logistic':
@@ -203,6 +216,7 @@ function App() {
         case 'linear':
         default:
           return x / 10;
+          // return x/2;
       }
     };
 
@@ -215,6 +229,7 @@ function App() {
         case 'linear':
         default:
           return 1 / 10;
+          // return 1/2;
       }
     };
 
@@ -238,6 +253,9 @@ function App() {
 
         const desiredOutput = Array(outputLayer).fill(0);
         desiredOutput[classMapping[sample.classe]] = 1;
+        // const desiredOutput = [
+        //   1,1  // Example values for the second hidden neuron
+        // ];
 
         // Forward pass
         const hiddenInputs = weightsInputHidden.map((weights) => {
@@ -268,7 +286,7 @@ function App() {
           return activationFunctionDerivative(error) * error;
         });
 
-        totalError += outputGradients.reduce((sum, err) => sum + Math.pow(err, 2), 0);
+        totalError += outputErrors.reduce((sum, err) => sum + Math.pow(err, 2), 0);
         // Armazenar a média de erros desta época
         const meanError = (1 / 2) * totalError;
         errorsPerEpoch.push(meanError);
@@ -285,7 +303,7 @@ function App() {
 
         // Atualizar pesos entre camada oculta e de saída
         weightsHiddenOutput = weightsHiddenOutput.map((weights, k) =>
-          weights.map((weight, j) => weight + learningRate * outputGradients[j] * hiddenOutputs[j])
+          weights.map((weight, j) => weight + learningRate * outputGradients[k] * finalOutputs[k])
         );
 
         // Atualizar pesos entre entrada e camada oculta
