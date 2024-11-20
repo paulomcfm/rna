@@ -15,8 +15,7 @@ function App() {
     hiddenLayer: 5,
     errorValue: 0.00001,
     iterations: 2000,
-    // N: 0.2,
-    N: 0.5,
+    N: 0.1,
     transferFunction: 'linear',
   });
   const [errorData, setErrorData] = useState({ labels: [], datasets: [{ label: 'Mean Error', data: [] }] });
@@ -34,8 +33,7 @@ function App() {
         const inputLayer = columnKeys.length - 1;
         const classes = [...new Set(data.map(row => row[columnKeys[columnKeys.length - 1]]))];
         const outputLayer = classes.length;
-        // const hiddenLayer = Math.round((inputLayer + outputLayer) / 2);
-        const hiddenLayer = 2;
+        const hiddenLayer = Math.round((inputLayer + outputLayer) / 2);
 
         setNeuronsConfig(prevConfig => ({
           ...prevConfig,
@@ -46,10 +44,7 @@ function App() {
 
         const { normalizedData, params } = normalizeData(data);
         setTrainingData(normalizedData);
-        // setTrainingData(data);
         setNormalizationParams(params);
-        // console.log(normalizedData);
-        // console.log(data);
       },
     });
     setDataSource('subset');
@@ -80,7 +75,7 @@ function App() {
         const value = parseFloat(row[key]);
         if (!isNaN(value) && params[key]) {
           const { min, max } = params[key];
-          normalizedRow[key] = (value - min) / (max - min);
+          normalizedRow[key] = parseFloat(((value - min) / (max - min)).toFixed(4));
         } else {
           normalizedRow[key] = row[key];
         }
@@ -115,7 +110,7 @@ function App() {
         const value = parseFloat(row[key]);
         if (!isNaN(value)) {
           const { min, max } = params[key];
-          normalizedRow[key] = (value - min) / (max - min);
+          normalizedRow[key] = parseFloat(((value - min) / (max - min)).toFixed(4));
         } else {
           normalizedRow[key] = row[key];
         }
@@ -134,6 +129,32 @@ function App() {
       value = 1;
     }
     setNeuronsConfig({ ...neuronsConfig, N: value });
+  };
+
+  const verificaPlato = (errorsPerEpoch, actualPos, n) => {
+    const interval = 15;
+    if (actualPos >= interval) {
+      const initialIntervalPos = actualPos - interval;
+      let sum = 0.0;
+      let diffSum = 0.0;
+
+      for (let i = initialIntervalPos; i < actualPos; i++) {
+        sum += errorsPerEpoch[i];
+      }
+
+      const media = sum / interval;
+
+      for (let i = initialIntervalPos; i < actualPos; i++) {
+        diffSum += Math.abs(errorsPerEpoch[i] - media);
+      }
+
+      const diffMean = diffSum / interval;
+
+      if (diffMean <= n) {
+        return true;
+      }
+    }
+    return false;
   };
 
   const runBackpropagation = () => {
@@ -171,41 +192,29 @@ function App() {
     }
 
     const { inputLayer, hiddenLayer, outputLayer, iterations, errorValue, N, transferFunction } = neuronsConfig;
-    const learningRate = N;
+    let learningRate = N;
     const errorsPerEpoch = [];
 
-    // Inicializar pesos aleatórios entre -1 e 1
     const initializeWeights = (rows, cols) => {
       return Array.from({ length: rows }, () =>
         Array.from({ length: cols }, () => Math.random() * 2 - 1)
       );
     };
 
-    // let weightsInputHidden = initializeWeights(inputLayer, hiddenLayer);
-    // let weightsHiddenOutput = initializeWeights(hiddenLayer, outputLayer);
+    // let weightsInputHidden = initializeWeights(hiddenLayer, inputLayer);
+    // let weightsHiddenOutput = initializeWeights(outputLayer, hiddenLayer);
 
     let weightsInputHidden = [
-      [0.5, -0.3, 0.8, -0.6, 0.2, -0.1], // Example values for the first hidden neuron
-      [-0.2, 0.4, -0.7, 0.9, -0.5, 0.3]   // Example values for the second hidden neuron
-    ];
-
+      [0.5, -0.3, 0.8, -0.6, 0.2, -0.1],
+      [-0.2, 0.4, -0.7, 0.9, -0.5, 0.3]
+    ]
     let weightsHiddenOutput = [
-      [0.3, -0.5], // Example values for the first output neuron
-      [-0.6, 0.7], // Example values for the second output neuron
-      [0.2, -0.4], // Example values for the third output neuron
-      [0.1, -0.2], // Example values for the fourth output neuron
-      [-0.3, 0.6]  // Example values for the third output neuron
+      [0.3, -0.5],
+      [-0.6, 0.7],
+      [0.2, -0.4],
+      [0.1, -0.2],
+      [-0.3, 0.6]
     ];
-
-    // let weightsInputHidden = [
-    //   [-1.1,1.4], // Example values for the first hidden neuron
-    //   [3.6,-2.1]   // Example values for the second hidden neuron
-    // ];
-
-    // let weightsHiddenOutput = [
-    //   [2.1, 3.2], // Example values for the first output neuron
-    //   [1.2, 1.6], // Example values for the second output neuron
-    // ];
 
     const activationFunction = (x) => {
       switch (transferFunction) {
@@ -216,11 +225,11 @@ function App() {
         case 'linear':
         default:
           return x / 10;
-          // return x/2;
       }
     };
 
     const activationFunctionDerivative = (y) => {
+      y=activationFunction(y);
       switch (transferFunction) {
         case 'logistic':
           return y * (1 - y);
@@ -229,11 +238,9 @@ function App() {
         case 'linear':
         default:
           return 1 / 10;
-          // return 1/2;
       }
     };
 
-    // Gerar mapeamento de classes dinâmico
     const uniqueClasses = [...new Set(trainingData.map(sample => sample.classe))];
     const classMapping = uniqueClasses.reduce((map, className, index) => {
       map[className] = index;
@@ -242,22 +249,21 @@ function App() {
 
     console.log('Mapeamento de classes:', classMapping);
     let error = 10;
-    for (let epoch = 0; epoch < iterations && error > errorValue; epoch++) {
-      let totalError = 0;
+    let outputGradientsFinal = [];
+    let shouldContinue = true;
+    let shouldIdentifyPlato = true;
+    let epochsSinceLastLearningRateChange = 0;
 
+    for (let epoch = 0; epoch < iterations && error > errorValue && shouldContinue; epoch++) {
+      let meanError = 0;
       trainingData.forEach((sample) => {
-        // Separar entrada e saída dinamicamente
         const inputs = Object.keys(sample)
           .filter(key => key !== 'classe')
           .map(key => parseFloat(sample[key]));
 
         const desiredOutput = Array(outputLayer).fill(0);
         desiredOutput[classMapping[sample.classe]] = 1;
-        // const desiredOutput = [
-        //   1,1  // Example values for the second hidden neuron
-        // ];
 
-        // Forward pass
         const hiddenInputs = weightsInputHidden.map((weights) => {
           return inputs.reduce((sum, input, i) => {
             if (i >= weights.length) {
@@ -274,53 +280,67 @@ function App() {
               return sum;
             }
             return sum + output * weights[i];
-          }, 0); // Initialize sum to 0
+          }, 0);
         });
         const finalOutputs = finalInputs.map(activationFunction);
 
-        // Calcular erro
         const outputErrors = desiredOutput.map((desired, i) => desired - finalOutputs[i]);
-        
-        // Backward pass (erro da camada de saída)
+
         const outputGradients = outputErrors.map((error, i) => {
-          return activationFunctionDerivative(error) * error;
+          return activationFunctionDerivative(finalInputs[i]) * error;
         });
+        outputGradientsFinal = outputGradients;
 
-        totalError += outputErrors.reduce((sum, err) => sum + Math.pow(err, 2), 0);
-        // Armazenar a média de erros desta época
-        const meanError = (1 / 2) * totalError;
-        errorsPerEpoch.push(meanError);
-        console.log('Época', epoch + 1, 'Erro médio:', meanError);
-        error = meanError;
-
-        // Erro da camada oculta
         const hiddenErrors = weightsHiddenOutput[0].map((_, j) => {
           const sum = outputGradients.reduce((acc, error, k) => {
             return acc + error * weightsHiddenOutput[k][j];
           }, 0);
-          return sum*activationFunctionDerivative();
+          return sum * activationFunctionDerivative(hiddenInputs[j]);
         });
 
-        // Atualizar pesos entre camada oculta e de saída
         weightsHiddenOutput = weightsHiddenOutput.map((weights, k) =>
-          weights.map((weight, j) => weight + learningRate * outputGradients[k] * finalOutputs[k])
+          weights.map((weight, j) => weight + learningRate * outputGradients[k] * hiddenOutputs[j])
         );
 
-        // Atualizar pesos entre entrada e camada oculta
         weightsInputHidden = weightsInputHidden.map((weights, i) =>
           weights.map((weight, j) => weight + learningRate * hiddenErrors[i] * inputs[j])
         );
-
-        // Atualizar dados do gráfico
-        // setErrorData((prevData) => ({
-        //   ...prevData,
-        //   labels: [...prevData.labels, epoch + 1],
-        //   datasets: [{
-        //     ...prevData.datasets[0],
-        //     data: [...prevData.datasets[0].data, meanError],
-        //   }],
-        // }));
       })
+      let totalError = 0;
+      totalError += outputGradientsFinal.reduce((sum, err) => sum + Math.pow(err, 2), 0);
+
+      meanError += (1 / 2) * totalError;
+      console.log('Época', epoch + 1, 'Erro médio:', meanError);
+      errorsPerEpoch.push(meanError);
+      error = meanError;
+
+      if (shouldIdentifyPlato && epochsSinceLastLearningRateChange >= 25 && verificaPlato(errorsPerEpoch, epoch, errorValue)) {
+        console.log('Platô detectado.');
+        shouldContinue = window.confirm('Platô detectado. Deseja continuar o treinamento?');
+        if (shouldContinue) {
+          const modifyLearningRate = window.confirm('Deseja modificar a taxa de aprendizado?');
+          if (modifyLearningRate) {
+            const newLearningRate = parseFloat(window.prompt('Digite a nova taxa de aprendizado:', learningRate));
+            if (!isNaN(newLearningRate) && newLearningRate > 0) {
+              learningRate = newLearningRate;
+              epochsSinceLastLearningRateChange = 0;
+            }
+          } else {
+            shouldIdentifyPlato = false;
+          }
+        }
+      }
+      epochsSinceLastLearningRateChange++;
+
+      // Atualizar dados do gráfico
+      // setErrorData((prevData) => ({
+      //   ...prevData,
+      //   labels: [...prevData.labels, epoch + 1],
+      //   datasets: [{
+      //     ...prevData.datasets[0],
+      //     data: [...prevData.datasets[0].data, meanError],
+      //   }],
+      // }));
     }
 
     console.log('Treinamento concluído. Média de erros por época:', errorsPerEpoch);
@@ -357,7 +377,7 @@ function App() {
                 type="number"
                 value={neuronsConfig.hiddenLayer}
                 onChange={(e) =>
-                  setNeuronsConfig({ ...neuronsConfig, hiddenLayer: e.target.value })
+                  setNeuronsConfig({ ...neuronsConfig, hiddenLayer: parseInt(e.target.value, 10) })
                 }
               />
             </Form.Group>
