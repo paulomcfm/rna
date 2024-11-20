@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Container, Button, Table, Form, Row, Col } from 'react-bootstrap';
 import Papa from 'papaparse';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+
+
 
 function App() {
   const [trainingData, setTrainingData] = useState([]);
@@ -18,7 +23,40 @@ function App() {
     N: 0.1,
     transferFunction: 'linear',
   });
-  const [errorData, setErrorData] = useState({ labels: [], datasets: [{ label: 'Mean Error', data: [] }] });
+  const [errorsPerEpoch, setErrorsPerEpoch] = useState([]);
+  const [chartData, setChartData] = useState({
+    labels: [],
+    datasets: [
+      {
+        label: 'Erro por Época',
+        data: [],
+        borderColor: 'rgba(75,192,192,1)',
+        backgroundColor: 'rgba(75,192,192,0.2)',
+      },
+    ],
+  });
+
+  const updateChartData = (epoch, error) => {
+    setErrorsPerEpoch((prevErrors) => {
+      const newErrors = [...prevErrors, error];
+      const newLabels = newErrors.map((_, index) => index + 1);
+
+      setChartData({
+        labels: newLabels,
+        datasets: [
+          {
+            label: 'Erro por Época',
+            data: newErrors,
+            borderColor: 'rgba(75,192,192,1)',
+            backgroundColor: 'rgba(75,192,192,0.2)',
+          },
+        ],
+      });
+
+      return newErrors;
+    });
+  };
+
 
   const handleFileUpload = (file) => {
     Papa.parse(file, {
@@ -132,7 +170,7 @@ function App() {
   };
 
   const verificaPlato = (errorsPerEpoch, actualPos, n) => {
-    const interval = 15;
+    const interval = 50;
     if (actualPos >= interval) {
       const initialIntervalPos = actualPos - interval;
       let sum = 0.0;
@@ -201,20 +239,20 @@ function App() {
       );
     };
 
-    // let weightsInputHidden = initializeWeights(hiddenLayer, inputLayer);
-    // let weightsHiddenOutput = initializeWeights(outputLayer, hiddenLayer);
+    let weightsInputHidden = initializeWeights(hiddenLayer, inputLayer);
+    let weightsHiddenOutput = initializeWeights(outputLayer, hiddenLayer);
 
-    let weightsInputHidden = [
-      [0.5, -0.3, 0.8, -0.6, 0.2, -0.1],
-      [-0.2, 0.4, -0.7, 0.9, -0.5, 0.3]
-    ]
-    let weightsHiddenOutput = [
-      [0.3, -0.5],
-      [-0.6, 0.7],
-      [0.2, -0.4],
-      [0.1, -0.2],
-      [-0.3, 0.6]
-    ];
+    // let weightsInputHidden = [
+    //   [0.5, -0.3, 0.8, -0.6, 0.2, -0.1],
+    //   [-0.2, 0.4, -0.7, 0.9, -0.5, 0.3]
+    // ]
+    // let weightsHiddenOutput = [
+    //   [0.3, -0.5],
+    //   [-0.6, 0.7],
+    //   [0.2, -0.4],
+    //   [0.1, -0.2],
+    //   [-0.3, 0.6]
+    // ];
 
     const activationFunction = (x) => {
       switch (transferFunction) {
@@ -229,7 +267,7 @@ function App() {
     };
 
     const activationFunctionDerivative = (y) => {
-      y=activationFunction(y);
+      y = activationFunction(y);
       switch (transferFunction) {
         case 'logistic':
           return y * (1 - y);
@@ -314,7 +352,7 @@ function App() {
       errorsPerEpoch.push(meanError);
       error = meanError;
 
-      if (shouldIdentifyPlato && epochsSinceLastLearningRateChange >= 25 && verificaPlato(errorsPerEpoch, epoch, errorValue)) {
+      if (shouldIdentifyPlato && epochsSinceLastLearningRateChange >= 50 && verificaPlato(errorsPerEpoch, epoch, errorValue)) {
         console.log('Platô detectado.');
         shouldContinue = window.confirm('Platô detectado. Deseja continuar o treinamento?');
         if (shouldContinue) {
@@ -332,15 +370,9 @@ function App() {
       }
       epochsSinceLastLearningRateChange++;
 
-      // Atualizar dados do gráfico
-      // setErrorData((prevData) => ({
-      //   ...prevData,
-      //   labels: [...prevData.labels, epoch + 1],
-      //   datasets: [{
-      //     ...prevData.datasets[0],
-      //     data: [...prevData.datasets[0].data, meanError],
-      //   }],
-      // }));
+      updateChartData(epoch, meanError);
+
+      // aqui deve-se atualizar o gráfico de linha onde o x é a época(epoch) e o y é o erro médio(meanError)
     }
 
     console.log('Treinamento concluído. Média de erros por época:', errorsPerEpoch);
@@ -498,13 +530,38 @@ function App() {
           Resolver
         </Button>
       )}
+      {chartData.labels.length > 0 && (
+        <Line
+          data={chartData}
+          options={{
+            responsive: false, // Desativa a responsividade
+            maintainAspectRatio: false, // Permite ajuste personalizado do tamanho
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function (context) {
+                    return `Erro: ${context.raw}`; // Mostra todas as casas decimais
+                  },
+                },
+              },
+            },
+            scales: {
+              y: {
+                ticks: {
+                  callback: function (value) {
+                    return value; // Evita truncamento no eixo Y
+                  },
+                },
+              },
+            },
+          }}
+          width={800} // Largura fixa do gráfico
+          height={400} // Altura fixa do gráfico
+        />
 
-      {errorData.labels.length > 0 && (
-        <div className="mt-3">
-          <h4>Mean Error per Iteration</h4>
-          <Line data={errorData} />
-        </div>
+
       )}
+
     </Container>
   );
 }
