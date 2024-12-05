@@ -1,70 +1,120 @@
-# Getting Started with Create React App
+# Rede Neural Perceptron Multicamadas
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Este projeto implementa uma rede neural perceptron multicamadas com um algoritmo de retropropagação para treinamento. A interface permite ajustar os parâmetros da rede, carregar datasets e avaliar o desempenho por meio de uma matriz de confusão e estatísticas de acurácia.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## Funcionalidades
 
-### `npm start`
+- **Configuração inicial da rede**:
+  - Número de neurônios na camada oculta.
+  - Valor de erro mínimo.
+  - Número máximo de iterações.
+  - Taxa de aprendizado.
+  - Função de transferência (linear, logística ou hiperbólica).
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **Seleção do dataset**:
+  - Carregue um dataset em formato CSV diretamente do seu computador.
+  - Escolha entre:
+    - **Subconjunto aleatório do dataset**: 70% dos dados são utilizados para treino e 30% para teste.
+    - **Arquivo externo**: Use um arquivo separado como dados de teste.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- **Treinamento e Detecção de Platô**:
+  - Ao clicar em "Resolver", o algoritmo começa o treinamento.
+  - Caso um platô seja detectado, o programa exibe as seguintes opções:
+    - **Continuar o treinamento**.
+    - **Modificar a taxa de aprendizado** (valores entre 0 e 1).
 
-### `npm test`
+- **Visualização**:
+  - Um gráfico interativo é gerado ao final do treinamento, exibindo:
+    - **Eixo X**: Épocas do aprendizado.
+    - **Eixo Y**: Erro médio por época.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- **Testar o modelo**:
+  - Clique em "Testar" após o treinamento para:
+    - Gerar a matriz de confusão.
+    - Exibir a acurácia geral e a acurácia por classe.
 
-### `npm run build`
+---
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Requisitos do Sistema
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- **Node.js**: Certifique-se de que o [Node.js](https://nodejs.org) está instalado em sua máquina.
+- **NPM** ou **Yarn**: Gerenciador de pacotes para instalar dependências.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+---
 
-### `npm run eject`
+## Instalação
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+1. Clone este repositório:
+   ```bash
+   git clone https://github.com/seu-usuario/seu-repositorio.git
+   ```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+2. Navegue até o diretório do projeto:
+   ```bash
+   cd seu-repositorio
+   ```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+3. Instale as dependências:
+   ```bash
+   npm install
+   ```
+   ou
+   ```bash
+   yarn install
+   ```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+---
 
-## Learn More
+## Uso
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+1. Inicie o servidor de desenvolvimento:
+   ```bash
+   npm start
+   ```
+   ou
+   ```bash
+   yarn start
+   ```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+2. Acesse o aplicativo em seu navegador:
+   ```
+   http://localhost:3000
+   ```
 
-### Code Splitting
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Fluxo de Uso
 
-### Analyzing the Bundle Size
+1. **Configuração**: Ajuste os parâmetros iniciais da rede, como número de neurônios na camada oculta, taxa de aprendizado, etc.
+2. **Carregamento do Dataset**: Escolha um arquivo CSV e defina se deseja usar um subconjunto ou arquivo externo para teste.
+3. **Treinamento**: Clique em "Resolver" para iniciar o treinamento. Caso detecte um platô, siga as instruções exibidas.
+4. **Visualização do Gráfico**: Analise o gráfico gerado para observar a evolução do erro médio por época.
+5. **Teste do Modelo**: Clique em "Testar" para verificar a matriz de confusão e as estatísticas de acurácia.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+---
 
-### Making a Progressive Web App
+## Exemplo de Dataset
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+O dataset deve estar no formato CSV com cabeçalhos, como no exemplo abaixo:
 
-### Advanced Configuration
+```csv
+X1,X2,X3,X4,X5,X6,classe
+0.0286,0.1233,0.2987,0.1493,0.0435,0.0411,CA
+0.0586,0.1333,0.3187,0.1393,0.0635,0.0511,CB
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+---
+## Tecnologias Utilizadas
 
-### Deployment
+- **React.js**: Biblioteca principal para a interface do usuário.
+- **React-Bootstrap**: Componentes de UI prontos para uso.
+- **Chart.js**: Geração de gráficos interativos.
+- **PapaParse**: Parser de arquivos CSV.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+---
 
-### `npm run build` fails to minify
+## Licença
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Este projeto está licenciado sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.

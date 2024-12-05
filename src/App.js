@@ -7,8 +7,6 @@ import { Line } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-
-
 function App() {
   const [trainingData, setTrainingData] = useState([]);
   const [testData, setTestData] = useState([]);
@@ -35,6 +33,12 @@ function App() {
       },
     ],
   });
+  const [finalWeightsHiddenOutput, setFinalWeightsHiddenOutput] = useState([]);
+  const [finalWeightsInputHidden, setFinalWeightsInputHidden] = useState([]);
+  const [confusionMatrix, setConfusionMatrix] = useState([]);
+  const [accuracyGlobal, setAccuracyGlobal] = useState(0);
+  const [classAccuracies, setClassAccuracies] = useState([]);
+
 
   const updateChartData = (epoch, error) => {
     setErrorsPerEpoch((prevErrors) => {
@@ -98,8 +102,7 @@ function App() {
         });
         const normalizedData = normalizeExternalData(data, normalizationParams);
         setTestData(normalizedData);
-        setTestData(data);
-        console.log(data);
+        console.log(normalizedData);
       },
     });
   };
@@ -195,40 +198,80 @@ function App() {
     return false;
   };
 
+  const activationFunction = (x) => {
+    switch (neuronsConfig.transferFunction) {
+      case 'logistic':
+        return 1 / (1 + Math.exp(-x));
+      case 'hyperbolic':
+        return Math.tanh(x);
+      case 'linear':
+      default:
+        return x / 10;
+    }
+  };
+
+  const activationFunctionDerivative = (y) => {
+    y = activationFunction(y);
+    switch (neuronsConfig.transferFunction) {
+      case 'logistic':
+        return y * (1 - y);
+      case 'hyperbolic':
+        return 1 - (Math.pow(y, 2));
+      case 'linear':
+      default:
+        return 1 / 10;
+    }
+  };
+
   const runBackpropagation = () => {
+    let backpropagationTrainingData = [];
     if (dataSource === 'subset') {
-      const classCounts = {};
-      const classData = {};
-
-      trainingData.forEach((row) => {
-        const className = row[row.length - 1];
-        if (!classCounts[className]) {
-          classCounts[className] = 0;
-          classData[className] = [];
-        }
-        classCounts[className]++;
-        classData[className].push(row);
+      const sortedData = [...trainingData].sort((a, b) => {
+        if (a.classe < b.classe) return -1;
+        if (a.classe > b.classe) return 1;
+        return 0;
       });
-
+  
       const newTrainingData = [];
       const newTestData = [];
-
-      Object.keys(classData).forEach((className) => {
-        const data = classData[className];
-        const testSize = Math.floor(data.length * 0.3);
-        const trainingSize = data.length - testSize;
-
-        newTrainingData.push(...data.slice(0, trainingSize));
-
-        newTestData.push(...data.slice(trainingSize));
+      let currentClass = sortedData[0]?.classe; 
+      let classStartIndex = 0;
+  
+      sortedData.forEach((row, index) => {
+        if (row.classe !== currentClass || index === sortedData.length - 1) {
+          const classEndIndex = index === sortedData.length - 1 ? index + 1 : index;
+          const classData = sortedData.slice(classStartIndex, classEndIndex);
+          const classSize = classData.length;
+  
+          const trainCount = Math.floor(classSize * 0.7);
+          const usedIndices = new Set();
+  
+          while (usedIndices.size < trainCount) {
+            const randomIndex = Math.floor(Math.random() * classSize);
+            if (!usedIndices.has(randomIndex)) {
+              usedIndices.add(randomIndex);
+              newTrainingData.push(classData[randomIndex]);
+            }
+          }
+  
+          classData.forEach((item, idx) => {
+            if (!usedIndices.has(idx)) {
+              newTestData.push(item);
+            }
+          });
+  
+          currentClass = row.classe;
+          classStartIndex = index;
+        }
       });
-
+  
       setTrainingData(newTrainingData);
       setTestData(newTestData);
-      console.log(newTrainingData);
-      console.log(newTestData);
+      backpropagationTrainingData = newTrainingData; 
+      console.log('Dados de treino:', newTrainingData);
+      console.log('Dados de teste:', newTestData);
     }
-
+    
     const { inputLayer, hiddenLayer, outputLayer, iterations, errorValue, N, transferFunction } = neuronsConfig;
     let learningRate = N;
     const errorsPerEpoch = [];
@@ -242,44 +285,11 @@ function App() {
     let weightsInputHidden = initializeWeights(hiddenLayer, inputLayer);
     let weightsHiddenOutput = initializeWeights(outputLayer, hiddenLayer);
 
-    // let weightsInputHidden = [
-    //   [0.5, -0.3, 0.8, -0.6, 0.2, -0.1],
-    //   [-0.2, 0.4, -0.7, 0.9, -0.5, 0.3]
-    // ]
-    // let weightsHiddenOutput = [
-    //   [0.3, -0.5],
-    //   [-0.6, 0.7],
-    //   [0.2, -0.4],
-    //   [0.1, -0.2],
-    //   [-0.3, 0.6]
-    // ];
+    if (dataSource === 'external') {
+      backpropagationTrainingData = trainingData;
+    }
 
-    const activationFunction = (x) => {
-      switch (transferFunction) {
-        case 'logistic':
-          return 1 / (1 + Math.exp(-x));
-        case 'hyperbolic':
-          return Math.tanh(x);
-        case 'linear':
-        default:
-          return x / 10;
-      }
-    };
-
-    const activationFunctionDerivative = (y) => {
-      y = activationFunction(y);
-      switch (transferFunction) {
-        case 'logistic':
-          return y * (1 - y);
-        case 'hyperbolic':
-          return 1 - (Math.pow(y, 2));
-        case 'linear':
-        default:
-          return 1 / 10;
-      }
-    };
-
-    const uniqueClasses = [...new Set(trainingData.map(sample => sample.classe))];
+    const uniqueClasses = [...new Set(backpropagationTrainingData.map(sample => sample.classe))];
     const classMapping = uniqueClasses.reduce((map, className, index) => {
       map[className] = index;
       return map;
@@ -294,7 +304,7 @@ function App() {
 
     for (let epoch = 0; epoch < iterations && error > errorValue && shouldContinue; epoch++) {
       let meanError = 0;
-      trainingData.forEach((sample) => {
+      backpropagationTrainingData.forEach((sample) => {
         const inputs = Object.keys(sample)
           .filter(key => key !== 'classe')
           .map(key => parseFloat(sample[key]));
@@ -369,13 +379,80 @@ function App() {
         }
       }
       epochsSinceLastLearningRateChange++;
-
       updateChartData(epoch, meanError);
-
-      // aqui deve-se atualizar o gráfico de linha onde o x é a época(epoch) e o y é o erro médio(meanError)
     }
 
+    setFinalWeightsHiddenOutput(weightsHiddenOutput);
+    setFinalWeightsInputHidden(weightsInputHidden);
     console.log('Treinamento concluído. Média de erros por época:', errorsPerEpoch);
+  };
+
+  const runTestData = () => {
+    const numClasses = neuronsConfig.outputLayer;
+    const confusionMatrix = Array.from({ length: numClasses }, () => Array(numClasses).fill(0));
+    let totalTestes = 0;
+    let acertos = 0;
+
+    const uniqueClasses = [...new Set(testData.map(sample => sample.classe))];
+    const classMapping = uniqueClasses.reduce((map, className, index) => {
+      map[className] = index;
+      return map;
+    }, {});
+
+    testData.forEach((sample) => {
+      const inputs = Object.keys(sample)
+        .filter(key => key !== 'classe')
+        .map(key => parseFloat(sample[key]));
+
+      const desiredClass = classMapping[sample.classe];
+
+      const hiddenInputs = finalWeightsInputHidden.map((weights) => {
+        return inputs.reduce((sum, input, i) => sum + input * weights[i], 0);
+      });
+
+      const hiddenOutputs = hiddenInputs.map(activationFunction);
+
+      const finalInputs = finalWeightsHiddenOutput.map((weights) => {
+        return hiddenOutputs.reduce((sum, output, i) => sum + output * weights[i], 0);
+      });
+
+      const finalOutputs = finalInputs.map(activationFunction);
+
+      let maxOutput = finalOutputs[0];
+      let identifiedClass = 0;
+
+      for (let k = 1; k < finalOutputs.length; k++) {
+        if (finalOutputs[k] > maxOutput) {
+          maxOutput = finalOutputs[k];
+          identifiedClass = k;
+        }
+      }
+
+      confusionMatrix[desiredClass][identifiedClass]++;
+      totalTestes++;
+      if (desiredClass === identifiedClass) {
+        acertos++;
+      }
+    });
+
+    const acuraciaGlobal = (acertos / totalTestes) * 100;
+
+    const acuraciaPorClasse = confusionMatrix.map((row, i) => {
+      const totalClasse = row.reduce((sum, value) => sum + value, 0);
+      const acertosClasse = row[i];
+      return totalClasse > 0 ? (acertosClasse / totalClasse) * 100 : 0;
+    });
+
+    acuraciaPorClasse.forEach((acuracia, i) => {
+      console.log(`Acurácia da classe ${i + 1}:`, acuracia, '%');
+    });
+    setConfusionMatrix(confusionMatrix);
+    setAccuracyGlobal(acuraciaGlobal);
+    setClassAccuracies(acuraciaPorClasse);
+
+    console.log('Confusion Matrix:', confusionMatrix);
+    console.log('Acurácia Global:', acuraciaGlobal, '%');
+
   };
 
   return (
@@ -488,8 +565,8 @@ function App() {
             value={dataSource}
             onChange={(e) => setDataSource(e.target.value)}
           >
-            <option value="external">Utilizar um arquivo externo para teste</option>
-            <option value="subset">Utilizar um subconjunto do arquivo original</option>
+            <option value="external">Use external file as testing dataset</option>
+            <option value="subset">Use a subset of the original file</option>
           </Form.Control>
         </Form.Group>
       )}
@@ -505,6 +582,7 @@ function App() {
       )}
       {trainingData.length > 0 && (
         <div style={{ maxHeight: '400px', overflowY: 'scroll' }}>
+          <h1>Traning Data</h1>
           <Table striped bordered hover className="mt-3">
             <thead>
               <tr>
@@ -525,22 +603,50 @@ function App() {
           </Table>
         </div>
       )}
-      {trainingData.length > 0 && (
+      {testData.length > 0 && (
+        <div style={{ maxHeight: '400px', overflowY: 'scroll' }}>
+          <h1>Traning Data</h1>
+          <Table striped bordered hover className="mt-3">
+            <thead>
+              <tr>
+                {Object.keys(testData[0]).map((header, index) => (
+                  <th key={index}>{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {testData.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {Object.values(row).map((value, colIndex) => (
+                    <td key={colIndex}>{value}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
+      )}
+      {trainingData.length > 0 && testData.length > 0 && dataSource === 'external' && (
         <Button className="mt-3" onClick={runBackpropagation}>
-          Resolver
+          Solve
+        </Button>
+      )}
+      {trainingData.length > 0 && dataSource === 'subset' && (
+        <Button className="mt-3" onClick={runBackpropagation}>
+          Solve
         </Button>
       )}
       {chartData.labels.length > 0 && (
         <Line
           data={chartData}
           options={{
-            responsive: false, // Desativa a responsividade
-            maintainAspectRatio: false, // Permite ajuste personalizado do tamanho
+            responsive: false,
+            maintainAspectRatio: false,
             plugins: {
               tooltip: {
                 callbacks: {
                   label: function (context) {
-                    return `Erro: ${context.raw}`; // Mostra todas as casas decimais
+                    return `Erro: ${context.raw}`;
                   },
                 },
               },
@@ -549,19 +655,53 @@ function App() {
               y: {
                 ticks: {
                   callback: function (value) {
-                    return value; // Evita truncamento no eixo Y
+                    return value;
                   },
                 },
               },
             },
           }}
-          width={800} // Largura fixa do gráfico
-          height={400} // Altura fixa do gráfico
+          width={800}
+          height={400}
         />
-
-
       )}
-
+      {chartData.labels.length > 0 && (
+        <Button className="mt-3" onClick={runTestData}>
+          Test
+        </Button>
+      )}
+      {confusionMatrix.length > 0 && (
+        <div className="mt-5">
+          <h3>Confusion Matrix</h3>
+          <Table striped bordered hover>
+            <thead>
+              <tr>
+                <th>Real Class</th>
+                {confusionMatrix.map((_, index) => (
+                  <th key={index}>Classe {index + 1}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {confusionMatrix.map((row, i) => (
+                <tr key={i}>
+                  <td>Class {i + 1}</td>
+                  {row.map((value, j) => (
+                    <td key={j}>{value}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+          <h4>Global Accuracy: {accuracyGlobal.toFixed(2)}%</h4>
+          <h4>Accuracy per Class:</h4>
+          <ul>
+            {classAccuracies.map((acc, index) => (
+              <li key={index}>Class {index + 1}: {acc.toFixed(2)}%</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Container>
   );
 }
